@@ -90,8 +90,10 @@ policy decided per action, before the handler runs.
 
 **3.2 — Attribution: the person AND the agent.**
 Every tool invocation is recorded with who asked — human identity plus
-agent-session context. The "thousand tickets closed as Joe" problem,
-answered: agent actions are distinguishable from human ones.
+agent-session context. The *"an agent can act a thousand times in the
+hour a human acts once"* problem, answered: every invocation records
+the human AND the agent session, so agent actions are distinguishable
+from human ones.
 - **Verified in:** Act 4 — audit entries showing actor attribution per
   call.
 - **Artifact:** `actor` and `session` fields in audit JSONL.
