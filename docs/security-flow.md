@@ -29,7 +29,7 @@ flowchart TD
     PERM -- "denied action" --> DENY
     PERM -- "permitted" --> PLAN
 
-    subgraph GATE["&nbsp;FRED GATEWAY — policy gate (mini-WriteGuard)&nbsp;"]
+    subgraph GATE["&nbsp;FRED GATEWAY — policy gate &nbsp;"]
         LOAD["Load tool policy + request context<br/><i>risk tier · enabled state · actor · session</i>"]:::policy
         TIER{"Permit this<br/>tool call?"}:::policy
         ATTR["✅ ALLOW<br/>attach agent + session attribution"]:::allow
