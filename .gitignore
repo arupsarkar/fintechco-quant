@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .venv
 secrets/
+audit/audit_log.jsonl
+data/restricted/

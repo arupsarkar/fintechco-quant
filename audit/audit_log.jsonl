@@ -1,2 +1,0 @@
-{"timestamp": "2026-08-05T20:06:29.412861+00:00", "tool": "selftest", "tier": "read_only", "outcome": "permitted", "actor": {"human": "user:arupsarkar", "agent_session": "agent:claude-code:0dc1d5b2"}, "detail": {}}
-{"timestamp": "2026-08-05T20:07:13.466897+00:00", "tool": "selftest", "tier": "read_only", "outcome": "permitted", "actor": {"human": "user:arupsarkar", "agent_session": "agent:claude-code:2ae74db8"}, "detail": {}}

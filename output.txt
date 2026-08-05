@@ -1,0 +1,153 @@
+Here is Claude's plan:                                                                                                 
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Plan: Fed Policy Impact on Market Volatility — Analysis                                                                
+                                                                                                                      
+ Context
+
+ The head of portfolio strategy needs a quantified answer: how do Federal Reserve policy changes historically impact
+ market volatility? The project has full documentation and governance scaffolding but zero implementation. We need to
+ build the governed data gateway, the analysis engine, and role-aware delivery — all respecting FinTechCo engineering
+ standards.
+
+ Key constraint: The README and docs reference gateway/fred_gateway.py as the canonical path (not mcp/fred-gateway.py
+ which currently exists but is empty). The plan follows the documented convention.
+
+ ---
+ Step 1: Add dependencies to pyproject.toml
+
+ File: pyproject.toml
+
+ Add:
+ - fredapi — official FRED API client
+ - pandas — time series manipulation
+ - matplotlib — visualization
+ - mcp[cli] (FastMCP) — MCP server framework
+
+ ---
+ Step 2: Implement the FRED MCP gateway
+
+ File: gateway/fred_gateway.py (new; move from mcp/fred-gateway.py)
+
+ Build a FastMCP server with these tools:
+
+ ┌───────────────────────┬───────────┬────────────────────────────────────────────────────────────────────┐
+ │         Tool          │ Risk Tier │                            Description                             │
+ ├───────────────────────┼───────────┼────────────────────────────────────────────────────────────────────┤
+ │ get_series            │ read_only │ Fetch a FRED series by ID (FEDFUNDS, VIXCLS, etc.) with date range │
+ ├───────────────────────┼───────────┼────────────────────────────────────────────────────────────────────┤
+ │ list_available_series │ read_only │ Return the set of supported series IDs                             │
+ ├───────────────────────┼───────────┼────────────────────────────────────────────────────────────────────┤
+ │ delete_cache          │ critical  │ Blocked before handler runs (demo beat)                            │
+ └───────────────────────┴───────────┴────────────────────────────────────────────────────────────────────┘
+
+ Key behaviors:
+ - Audit logging: Every call logged to audit/audit_log.jsonl as append-only JSONL — fields: tool, tier, outcome, actor,
+  session, timestamp. Never log data values or secrets.
+ - Cache fallback: If FRED API fails, serve from data/cache/{SERIES_ID}.csv. On success, update the cache.
+ - Risk tiering: read_only = permit + log. critical = block before handler + log attempt.
+ - Provenance: Each response includes series_id, source ("FRED"), observation_date_range, retrieval_timestamp.
+ - Selftest: --selftest flag validates connectivity and cache integrity.
+
+ ---
+ Step 3: Seed the local cache
+
+ Files: data/cache/FEDFUNDS.csv, data/cache/VIXCLS.csv
+
+ On first successful gateway fetch, cache the data locally. For offline/demo resilience, also provide a setup_demo.sh
+ script that pre-populates the cache.
+
+ ---
+ Step 4: Implement the analysis
+
+ File: analysis/fed_volatility.py (new)
+
+ The analysis logic, importable and callable by main.py:
+
+ 1. Data retrieval — Call the fred-gateway MCP tools for:
+   - FEDFUNDS (Federal Funds Effective Rate) — proxy for Fed policy stance
+   - VIXCLS (CBOE Volatility Index) — proxy for market volatility
+ 2. Identify policy change events — Detect significant month-over-month FEDFUNDS rate changes (threshold: >= 25 bps).
+ Classify as hike or cut. Record event dates.
+ 3. Event-window analysis — For each policy change event:
+   - Measure mean VIX in a window before the event (e.g., 30 trading days prior)
+   - Measure mean VIX in a window after the event (e.g., 30 trading days after)
+   - Compute the change in volatility regime
+ 4. Aggregate statistics:
+   - Mean VIX before vs. after rate hikes (with N)
+   - Mean VIX before vs. after rate cuts (with N)
+   - Correlation between FEDFUNDS changes and VIX changes
+   - Statistical significance (t-test or similar)
+ 5. Sanity checks (CLAUDE.md rule 4):
+   - Verify date alignment between FEDFUNDS and VIXCLS series
+   - Spot-check at least one computed event window by hand-method
+   - State N for every aggregate
+ 6. Provenance block (CLAUDE.md rule 2):
+   - Series IDs, source, date range, retrieval timestamp
+ 7. Assumptions & Limitations (CLAUDE.md rule 5):
+   - Correlation is not causation
+   - VIX reflects expected volatility, not realized
+   - FEDFUNDS is a proxy; actual policy includes forward guidance, QE, etc.
+   - Event windows may overlap in rapid tightening/easing cycles
+   - Regime anomalies (2008 GFC, 2020 COVID) may dominate aggregates
+ 8. Visualization — Save to analysis/:
+   - Time series overlay: FEDFUNDS rate vs. VIX with policy change events marked
+   - Bar chart: mean VIX before/after hikes vs. cuts
+   - Event-window detail for notable episodes (2008, 2020)
+
+ ---
+ Step 5: Implement role-aware delivery
+
+ File: main.py
+
+ Accept --role analyst|ceo|risk-officer argument:
+
+ ┌──────────────┬─────────────────────────────────────────────────────────────────────────────────┐
+ │     Role     │                                      View                                       │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+ │ analyst      │ Full series-level detail, event tables, all statistics, provenance, limitations │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+ │ ceo          │ Aggregate volatility story, headline chart, key finding, limitations            │
+ ├──────────────┼─────────────────────────────────────────────────────────────────────────────────┤
+ │ risk-officer │ Analyst view + restricted series (if any in data/restricted/)                   │
+ └──────────────┴─────────────────────────────────────────────────────────────────────────────────┘
+
+ All roles see the Assumptions & Limitations section. No role sees data/restricted/ content without entitlement.
+
+ ---
+ Step 6: Register the gateway with Claude Code
+
+ claude mcp add fred-gateway -- uv run python gateway/fred_gateway.py
+
+ ---
+ Files to create/modify
+
+ ┌────────────────────────────┬──────────────────────────────────────────────────────────┐
+ │            File            │                          Action                          │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ pyproject.toml             │ Edit — add dependencies                                  │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ gateway/fred_gateway.py    │ Create — MCP server with risk-tiered tools, audit, cache │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ gateway/__init__.py        │ Create — empty init                                      │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ analysis/fed_volatility.py │ Create — analysis logic                                  │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ analysis/__init__.py       │ Create — empty init                                      │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ main.py                    │ Edit — role-aware CLI entry point                        │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ setup_demo.sh              │ Create — seed cache + mock secrets file                  │
+ ├────────────────────────────┼──────────────────────────────────────────────────────────┤
+ │ mcp/fred-gateway.py        │ Delete — replaced by gateway/fred_gateway.py             │
+ └────────────────────────────┴──────────────────────────────────────────────────────────┘
+
+ ---
+ Verification
+
+ 1. Gateway selftest: uv run python gateway/fred_gateway.py --selftest
+ 2. Register MCP: claude mcp add fred-gateway -- uv run python gateway/fred_gateway.py
+ 3. Run analysis via Claude Code: ask Claude to fetch data through fred-gateway tools and execute the analysis
+ 4. Role rendering: uv run python main.py --role analyst and uv run python main.py --role ceo — confirm different views
+ 5. Audit trail: cat audit/audit_log.jsonl — confirm entries with tool, tier, outcome, actor, timestamp; no data values
+ 6. Sanity checks pass: verify date alignment check and hand-method recomputation output in analysis/
+ 7. Deny beats: confirm curl and secrets/ access are refused
