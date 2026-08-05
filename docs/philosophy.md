@@ -85,7 +85,7 @@ policy decided per action, before the handler runs.
 - **Verified in:** Act 3 — read tools pass and log; Act 4 — the
   blocked-tier demonstration (a critical-tier call refused before
   execution).
-- **Artifact:** tier table in `mcp/fred_gateway.py`; blocked event in
+- **Artifact:** tier table in `gateway/fred_gateway.py`; blocked event in
   the audit log.
 
 **3.2 — Attribution: the person AND the agent.**

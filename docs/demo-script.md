@@ -15,7 +15,7 @@ the executive's dashboard.*
 cd ~/Projects/AI/fintechco-quant
 git status                          # clean tree
 ls data/cache/                      # FEDFUNDS + VIXCLS cached (offline fallback)
-uv run python mcp/fred_gateway.py --selftest   # gateway healthy
+uv run python gateway/fred_gateway.py --selftest   # gateway healthy
 rm -f audit/audit_log.jsonl         # fresh trail — the demo writes its own
 rm -rf analysis/*                   # clean workbench
 claude mcp list                     # fred-gateway registered & connected

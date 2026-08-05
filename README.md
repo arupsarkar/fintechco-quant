@@ -23,7 +23,7 @@ See the full flow: [docs/security-flow.md](docs/security-flow.md)
 | Layer | Mechanism | Where |
 |---|---|---|
 | Governed development | `CLAUDE.md` standards + managed-settings deny rules (secrets, raw egress, destructive commands) | `.claude/settings.json`, `CLAUDE.md` |
-| Governed tool execution | Policy-gated FRED MCP gateway: risk tiers, block-before-handler on critical tier, agent+session attribution | `mcp/fred_gateway.py` |
+| Governed tool execution | Policy-gated FRED MCP gateway: risk tiers, block-before-handler on critical tier, agent+session attribution | `gateway/fred_gateway.py` |
 | Attributed audit | Append-only, scrubbed JSONL — tool, tier, outcome, actor, time; never data values | `audit/` |
 | Analysis integrity | Plan-before-act, sanity checks on every claim, provenance and stated limitations in every deliverable | `CLAUDE.md` rules 4–6, `analysis/` |
 | ABAC delivery | Role-aware rendering: CEO aggregate vs. analyst detail; restricted series render only with entitlement | `main.py --role <role>` |
@@ -36,10 +36,10 @@ git clone <repo-url> && cd fintechco-quant
 cp .env.example .env                 # add your FRED_API_KEY (free: fred.stlouisfed.org)
 ./setup_demo.sh                      # recreates local demo fixtures (see note below)
 uv sync
-uv run python mcp/fred_gateway.py --selftest
+uv run python gateway/fred_gateway.py --selftest
 
 # Register the governed gateway with Claude Code
-claude mcp add fred-gateway -- uv run python mcp/fred_gateway.py
+claude mcp add fred-gateway -- uv run python gateway/fred_gateway.py
 
 # The finale, standalone
 uv run python main.py --role analyst
