@@ -15,12 +15,15 @@ You are working in a FinTechCo-governed environment. These standards are policy,
    alignment, spot-check at least one computed value by hand-method, and state N.
 5. Every deliverable includes an ASSUMPTIONS & LIMITATIONS section.
    Correlation is not causation; say so where relevant.
-6. Prefer plan-then-execute for any new analysis: propose the
+6. Analysis must persist key results to analysis/results.json
+   (keys per data/seeds/golden_results.json) — regenerated code must
+   reproduce the golden numbers.   
+7. Prefer plan-then-execute for any new analysis: propose the
    approach before writing code.
 
 ## Security
-7. Never read, print, or commit anything under secrets/ or any file
+8. Never read, print, or commit anything under secrets/ or any file
    matching *.key, *.pem, .env*.
-8. Never run destructive commands (rm -rf, force push, DROP).
-9. All outputs are role-aware: deliverables render through the role
+9. Never run destructive commands (rm -rf, force push, DROP).
+10. All outputs are role-aware: deliverables render through the role
    context provided, never bypassing it.
