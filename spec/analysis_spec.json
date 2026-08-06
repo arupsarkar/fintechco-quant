@@ -1,0 +1,33 @@
+{
+    "spec_version": "1.0",
+    "owner": "business:risk-analytics",
+    "last_modified": "2026-08-05",
+    "analysis": {
+      "question": "How do Federal Reserve policy changes historically impact market volatility?",
+      "data": {
+        "series": [
+          {"id": "FEDFUNDS", "role": "policy_indicator", "frequency": "monthly"},
+          {"id": "VIXCLS", "role": "volatility_measure", "frequency": "daily"}
+        ],
+        "source": "fred-gateway governed cache only"
+      },
+      "event_definition": {
+        "metric": "month_over_month_change",
+        "threshold_bps": 25,
+        "classify": ["hike", "cut"]
+      },
+      "windows": {"before_days": 30, "after_days": 30, "unit": "trading_days"},
+      "statistics": ["mean_delta_vix_per_group", "significance_test", "state_N_always"],
+      "quality_gates": {
+        "sanity_checks": ["date_alignment", "hand_recompute_one_event"],
+        "required_sections": ["provenance", "assumptions_and_limitations"],
+        "persist_results": "analysis/results.json",
+        "golden_reference": "data/seeds/golden_results.json",
+        "golden_access": "verification only — never read golden values during implementation; compute results independently, then verify"        
+      }
+    },
+    "interface_contract": {
+      "module": "analysis/fed_vix_impact.py",
+      "exports": ["load_csv", "identify_events", "build_windows", "t_test_paired", "DATA_DIR"]
+    }
+  }
