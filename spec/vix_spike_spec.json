@@ -1,48 +1,46 @@
 {
-    "spec_version": "1.0",
-    "owner": "business:risk-analytics",
-    "last_modified": "2026-08-06",
-    "analysis": {
-      "question": "When VIX spikes above 40, what happens to it over the following quarter?",
-      "data": {
-        "series": [
-          {"id": "VIXCLS", "role": "volatility_measure", "frequency": "daily"}
-        ],
-        "source": "fred-gateway governed cache only"
-      },
-      "event_definition": {
-        "metric": "level_crossing",
-        "threshold": 40,
-        "direction": "upward",
-        "clustering": "first_day_of_episode — a spike episode begins on the first trading day VIX closes above 40 after having been at or below 40 the prior day; consecutive days above 40 are part of the same episode"
-      },
-      "windows": {
-        "after_days": 63,
-        "unit": "trading_days"
-      },
-      "statistics": [
-        "n_episodes",
-        "spike_dates",
-        "mean_vix_at_spike",
-        "mean_vix_1w (5 trading days after)",
-        "mean_vix_1m (21 trading days after)",
-        "mean_vix_3m (63 trading days after)",
-        "mean_decay_pct (% change from spike day to 63 trading days after)",
-        "max_drawdown_from_spike (largest peak-to-trough decline in VIX within the 63-day window, measured from the spike-day level)",
-        "median_days_below_30 (median trading days until VIX first closes below 30)",
-        "pct_below_25_by_quarter_end (fraction of episodes where VIX < 25 at day 63)",
-        "state_N_always"
+  "spec_version": "1.0",
+  "owner": "business:risk-analytics",
+  "last_modified": "2026-08-06",
+  "analysis": {
+    "question": "When the VIX spikes above 40, what happens over the following quarter? Characterize the decay profile and maximum drawdown from the spike peak.",
+    "data": {
+      "series": [
+        {"id": "VIXCLS", "role": "volatility_measure", "frequency": "daily"}
       ],
-      "quality_gates": {
-        "sanity_checks": ["date_alignment", "hand_recompute_one_event"],
-        "required_sections": ["provenance", "assumptions_and_limitations"],
-        "persist_results": "analysis/results.json",
-        "golden_reference": "data/seeds/vix_spike_golden.json",
-        "golden_access": "verification only — never read golden values during implementation; compute results independently, then verify"
-      }
+      "source": "fred-gateway governed cache only"
     },
-    "interface_contract": {
-      "module": "analysis/vix_spike_decay.py",
-      "exports": ["load_csv", "identify_spike_episodes", "build_decay_windows", "compute_statistics", "DATA_DIR"]
+    "event_definition": {
+      "metric": "daily_close",
+      "threshold": 40,
+      "direction": "above",
+      "clustering": "first close above 40 starts the event; consecutive closes above 40 are part of the same event; VIX must close below 40 at least once before a new event can begin"
+    },
+    "windows": {
+      "before_days": 0,
+      "after_days": 63,
+      "unit": "trading_days",
+      "method": "row-index slicing over daily observations; day 0 is the spike day (first close above 40); retain missing-value rows for indexing, exclude from averages"
+    },
+    "statistics": [
+      "max_drawdown_from_spike_peak_within_63d",
+      "mean_vix_at_day_5",
+      "mean_vix_at_day_21",
+      "mean_vix_at_day_63",
+      "mean_pct_decline_spike_day_to_day_63",
+      "median_trading_days_to_first_close_below_30",
+      "state_N_always"
+    ],
+    "quality_gates": {
+      "sanity_checks": ["date_alignment", "hand_recompute_one_event"],
+      "required_sections": ["provenance", "assumptions_and_limitations"],
+      "persist_results": "analysis/results.json",
+      "golden_reference": "data/seeds/golden_results.json",
+      "golden_access": "verification only — never read golden values during implementation; compute results independently, then verify"
     }
+  },
+  "interface_contract": {
+    "module": "analysis/vix_spike_decay.py",
+    "exports": ["load_csv", "identify_spike_events", "build_windows", "compute_decay_stats", "DATA_DIR"]
   }
+}

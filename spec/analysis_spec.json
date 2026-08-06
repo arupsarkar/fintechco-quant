@@ -33,6 +33,7 @@
     },
     "interface_contract": {
       "module": "analysis/fed_vix_impact.py",
-      "exports": ["load_csv", "identify_events", "build_windows", "t_test_paired", "DATA_DIR"]
+      "exports": ["load_csv", "identify_events", "build_windows", "t_test_paired", "DATA_DIR"],
+      "window_record_schema": ["date", "direction", "delta_pp", "before_mean", "after_mean", "dvix"]
     }
   }

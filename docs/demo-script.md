@@ -119,8 +119,7 @@ are IT-managed and user-immutable."
 come from? Watch a risk analyst who has never seen this repo create
 one. I'll play them."
 
-**RUN (in character, one compact prompt — answers pre-embedded so no
-interview loop):**
+**RUN (in character):**
 > *"I'm from risk analytics. I need a new analysis: when the VIX
 > spikes above 40, what happens over the following quarter? Threshold
 > 40 is right, use 63 trading days for the quarter, include max
@@ -128,17 +127,24 @@ interview loop):**
 > spec/vix_spike_spec.json, read it back to me in plain English, and
 > stop — no code."*
 
-**EXPECT:** schema-valid spec written — episode-clustering logic
-volunteered (avoids double-counting 2008/2020), full quality_gates
-block carried unprompted INCLUDING golden_access, new golden path
-implied; then a plain-English read-back.
-**SAY (over the read-back):** "Notice what the business user never
-asked for but got anyway: sanity checks, provenance, limitations,
-and the answer-key hygiene — gates are non-removable in the authoring
-guide. Business authors; the guardrails travel. And in my dry run its
-first draft pointed results at the SAME file as the Fed analysis —
-human review caught the collision before any code existed. Authors
-propose; reviewers approve; gates certify."
+**EXPECT:** it may still interview — that's the feature ("it won't
+write a spec on assumptions"). Pre-armed answers, verbatim:
+
+- *Drawdown of what?* → "The VIX itself — how far it falls from the
+  spike-day level within the 63-day window. Equities are out of scope."
+- *One event or many when VIX stays above 40?* → "One event — episode
+  starts on the first close above 40 after a close at or below 40;
+  consecutive days above are the same episode, or 2008 and 2020 would
+  count dozens of times."
+- *Additional statistics?* → "Max drawdown plus the decay profile:
+  mean VIX at 5/21/63 trading days after, mean percent decline from
+  spike day to day 63, and median trading days until first close
+  below 30. State N everywhere. That's the full list — write the spec."
+
+**SAY (over the interview, if it happens):** "Notice it's
+interviewing me — the exact ambiguities a desk quant would flag:
+drawdown of what, episode clustering, the stat list. It won't author
+a rulebook on assumptions."
 
 **VALUE LINE:** *"Business intent → Claude-authored metadata — Claude
 as an enterprise operating pattern, not a developer accessory."*

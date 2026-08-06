@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import csv
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,78 @@ VALID_ROLES = ("analyst", "ceo", "risk-officer")
 
 # ── ABAC policy: which roles may see restricted data ──────────────
 RESTRICTED_ENTITLED = {"risk-officer"}
+
+
+# ── one-sample t-test for rendering (analysis module has two-group API) ──
+
+def _betacf(a, b, x):
+    MAXIT, EPS, FPMIN = 200, 3e-12, 1e-30
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < FPMIN:
+        d = FPMIN
+    d = 1.0 / d
+    h = d
+    for m in range(1, MAXIT + 1):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < FPMIN:
+            d = FPMIN
+        c = 1.0 + aa / c
+        if abs(c) < FPMIN:
+            c = FPMIN
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < FPMIN:
+            d = FPMIN
+        c = 1.0 + aa / c
+        if abs(c) < FPMIN:
+            c = FPMIN
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < EPS:
+            return h
+    return h
+
+
+def _betainc(a, b, x):
+    if x <= 0:
+        return 0.0
+    if x >= 1:
+        return 1.0
+    ln_pre = (math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+              + a * math.log(x) + b * math.log(1 - x))
+    front = math.exp(ln_pre)
+    if x < (a + 1) / (a + b + 2):
+        return front * _betacf(a, b, x) / a
+    return 1.0 - front * _betacf(b, a, 1 - x) / b
+
+
+def _one_sample_stats(vals):
+    n = len(vals)
+    if n == 0:
+        return {"t": 0, "p": 1, "n": 0, "mean": 0, "std": 0, "ci_lo": 0, "ci_hi": 0}
+    m = sum(vals) / n
+    if n < 2:
+        return {"t": 0, "p": 1, "n": n, "mean": round(m, 2), "std": 0,
+                "ci_lo": round(m, 2), "ci_hi": round(m, 2)}
+    var = sum((x - m) ** 2 for x in vals) / (n - 1)
+    sd = math.sqrt(var)
+    se = sd / math.sqrt(n)
+    t = m / se if se else 0.0
+    df = n - 1
+    p = _betainc(df / 2.0, 0.5, df / (df + t * t))
+    t_crit = 1.96 if df > 30 else 2.0
+    ci_lo = m - t_crit * se
+    ci_hi = m + t_crit * se
+    return {"t": round(t, 4), "p": round(p, 4), "n": n,
+            "mean": round(m, 2), "std": round(sd, 2),
+            "ci_lo": round(ci_lo, 2), "ci_hi": round(ci_hi, 2)}
 
 
 # ── data loading ──────────────────────────────────────────────────
@@ -60,16 +133,16 @@ def render_provenance():
 
 
 def render_summary_stats(windows):
-    hikes = [w for w in windows if w.event.direction == "hike"]
-    cuts = [w for w in windows if w.event.direction == "cut"]
+    hikes = [w for w in windows if w["direction"] == "hike"]
+    cuts = [w for w in windows if w["direction"] == "cut"]
 
     print(f"\n{'Category':<12} {'N':>4} {'Mean dVIX':>10} {'Std':>8} "
           f"{'t-stat':>8} {'p-value':>9} {'95% CI':>18}")
     print("-" * 65)
 
     for label, subset in [("All events", windows), ("Hikes", hikes), ("Cuts", cuts)]:
-        diffs = [w.delta_vix for w in subset]
-        stats = t_test_paired(diffs)
+        diffs = [w["dvix"] for w in subset]
+        stats = _one_sample_stats(diffs)
         sig = ""
         if stats["p"] < 0.01:
             sig = " ***"
@@ -91,11 +164,11 @@ def render_event_table(windows):
           f"{'VIX_pre':>8} {'VIX_post':>9} {'dVIX':>8}")
     print("-" * 56)
     for w in windows:
-        print(f"{w.event.date.strftime('%Y-%m-%d'):<12} "
-              f"{w.event.direction:<5} "
-              f"{w.event.delta * 100:>+10.0f} "
-              f"{w.vix_pre:>8.2f} {w.vix_post:>9.2f} "
-              f"{w.delta_vix:>+8.2f}")
+        print(f"{w['date']:<12} "
+              f"{w['direction']:<5} "
+              f"{w['delta_pp'] * 100:>+10.0f} "
+              f"{w['before_mean']:>8.2f} {w['after_mean']:>9.2f} "
+              f"{w['dvix']:>+8.2f}")
 
 
 def render_restricted_section(cpri_data):
@@ -112,25 +185,26 @@ def render_restricted_section(cpri_data):
     print(f"\n  Series : INTERNAL_CPRI")
     print(f"  Source : data/restricted/ (classified)")
     print(f"  Rows   : {len(cpri_data)}")
-    print(f"  Range  : {cpri_data[0][0].date()} to {cpri_data[-1][0].date()}")
+    print(f"  Range  : {cpri_data[0]['date']} to {cpri_data[-1]['date']}")
 
     # Show crisis-period peaks aligned with Fed events
     print(f"\n  {'Date':<12} {'CPRI':>8}  Context")
     print("  " + "-" * 50)
 
     crisis_periods = [
-        (datetime(2008, 9, 1), datetime(2008, 12, 31), "GFC peak"),
-        (datetime(2020, 2, 1), datetime(2020, 5, 31), "COVID shock"),
-        (datetime(2022, 5, 1), datetime(2022, 12, 31), "Tightening cycle"),
+        ("2008-09-01", "2008-12-31", "GFC peak"),
+        ("2020-02-01", "2020-05-31", "COVID shock"),
+        ("2022-05-01", "2022-12-31", "Tightening cycle"),
     ]
 
     for start, end, label in crisis_periods:
-        period_data = [(d, v) for d, v in cpri_data if start <= d <= end]
+        period_data = [(r["date"], r["value"]) for r in cpri_data
+                       if r["value"] is not None and start <= r["date"] <= end]
         if period_data:
             peak_date, peak_val = max(period_data, key=lambda x: x[1])
             for d, v in period_data:
                 marker = " << PEAK" if d == peak_date else ""
-                print(f"  {d.strftime('%Y-%m-%d'):<12} {v:>8.1f}  "
+                print(f"  {d:<12} {v:>8.1f}  "
                       f"{label}{marker}")
 
     print()
@@ -204,16 +278,16 @@ def render_ceo(windows):
     """Aggregate headline; no per-event detail; restricted series absent."""
     render_provenance()
 
-    hikes = [w for w in windows if w.event.direction == "hike"]
-    cuts = [w for w in windows if w.event.direction == "cut"]
+    hikes = [w for w in windows if w["direction"] == "hike"]
+    cuts = [w for w in windows if w["direction"] == "cut"]
 
-    all_diffs = [w.delta_vix for w in windows]
-    hike_diffs = [w.delta_vix for w in hikes]
-    cut_diffs = [w.delta_vix for w in cuts]
+    all_diffs = [w["dvix"] for w in windows]
+    hike_diffs = [w["dvix"] for w in hikes]
+    cut_diffs = [w["dvix"] for w in cuts]
 
-    all_stats = t_test_paired(all_diffs)
-    hike_stats = t_test_paired(hike_diffs)
-    cut_stats = t_test_paired(cut_diffs)
+    all_stats = _one_sample_stats(all_diffs)
+    hike_stats = _one_sample_stats(hike_diffs)
+    cut_stats = _one_sample_stats(cut_diffs)
 
     print()
     print("EXECUTIVE SUMMARY")
