@@ -35,7 +35,11 @@ def identify_events(fedfunds: list[dict]) -> list[dict]:
 
 
 def build_windows(events: list[dict], vix: list[dict]) -> list[dict]:
-    """Attach 30-calendar-day before/after VIX windows and delta to each event."""
+    """Attach 30-calendar-day before/after VIX windows and delta to each event.
+
+    Uses calendar-day windows (timedelta 30 days) over valid VIX
+    observations.  Event date itself is excluded from both windows.
+    """
     vix_parsed = []
     for r in vix:
         if r["value"] is not None:

@@ -16,7 +16,12 @@
         "threshold_bps": 25,
         "classify": ["hike", "cut"]
       },
-      "windows": {"before_days": 30, "after_days": 30, "unit": "trading_days"},
+      "windows": {
+                  "before_days": 30, 
+                  "after_days": 30, 
+                  "unit": "trading_days",
+                  "method": "row-index slicing over daily observations; retain missing-value rows for indexing, exclude from averages"
+                },
       "statistics": ["mean_delta_vix_per_group", "significance_test", "state_N_always"],
       "quality_gates": {
         "sanity_checks": ["date_alignment", "hand_recompute_one_event"],
