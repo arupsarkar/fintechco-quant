@@ -483,6 +483,79 @@ actually need to sign off on."*
   + `eval/sdk_token_log.jsonl`. Same 5 compliance checks, but with
   metrics the CLI path cannot observe.
 
+## Why the answers are trustworthy (for CEO, analyst, risk officer)
+
+The code that produces the analysis is *regenerated* — Claude writes
+it fresh from a rulebook each time. A CEO's natural question: "If
+the machine writes new code, how do I know the numbers don't change?"
+
+The answer is three facts and a consequence:
+
+1. **The data is frozen** — same 26 years of Fed rates and VIX,
+   cached, never re-fetched mid-run.
+2. **The rules are frozen** — a JSON spec says exactly which events
+   count, which windows to measure, which statistics to compute.
+3. **Therefore the answers must be identical** — and a gate checks:
+   8 values, tolerance 0.01, pass or fail. No partial credit.
+
+We tested this offline during development — deleted the code and
+regenerated it K=4 times, each in a fresh session. The eval log
+(`eval/regeneration_log.jsonl`) records every run with a timestamp
+and verdict. Two were clean. Two caught real drift: a holiday
+shifted a window index; a method changed while numbers coincidentally
+matched. Each failure made the gate sharper. That's not a weakness
+of generation — it's the reason you gate it.
+
+**For the analyst:** the gate checks N, event counts, mean VIX
+deltas, and hand-recomputed spot values. If any value drifts, the
+gate fails before results ship.
+
+**For the risk officer:** the gate is method-discriminating — it
+checks not just that answers match, but that observation counts
+match, so a different calculation path that arrives at the same
+number by accident is caught too.
+
+**For the CEO:** regenerated code is cheaper than maintained code.
+The gate is what makes it safe. Delete, regenerate, verify — that's
+the whole loop, and it's measured in a log, not promised in a slide.
+
+## Prove it yourself (hands-on determinism check)
+
+Run these commands from the project root. Total time: ~2 minutes.
+
+```bash
+# 1. Verify the current certified code passes the gate
+uv run python analysis/fed_vix_impact.py
+uv run python scripts/verify_golden.py
+#    EXPECT: GOLDEN VERIFIED: 8 values reproduced (tolerance 0.01)
+
+# 2. Run the full 5-check eval and log the result
+uv run python scripts/eval_regeneration.py --log
+#    EXPECT: REGENERATION PASS: 5/5 checks
+#    logged -> eval/regeneration_log.jsonl
+
+# 3. Read the log — every regeneration ever scored is here
+cat eval/regeneration_log.jsonl | python -m json.tool
+#    Each entry: timestamp, verdict, per-check pass/fail
+
+# 4. (Optional) Delete the code, regenerate, and re-verify
+#    This is the full determinism proof — fresh code, same answers.
+#    Run in a fresh Claude Code session:
+#      rm analysis/fed_vix_impact.py
+#      claude  # new session from project root
+#      > "Perform the Fed policy volatility analysis."
+#      > approve plan + execution
+#      uv run python scripts/verify_golden.py
+#      uv run python scripts/eval_regeneration.py --log
+#    EXPECT: GOLDEN VERIFIED + REGENERATION PASS
+#    If the gate fires: that's the system working — read the
+#    mismatch, fix or re-baseline, and the log records it.
+```
+
+**What you've proved:** frozen data + frozen rules + the gate =
+answers that survive code deletion and regeneration. The log is the
+evidence; K and N are always stated.
+
 ## Recovery moves
 
 - **Stale session:** restart from root, `/mcp`. Session hygiene.
