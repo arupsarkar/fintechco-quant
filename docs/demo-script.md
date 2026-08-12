@@ -10,8 +10,8 @@ must reproduce the golden values, and my eval harness measures that it
 does, with N stated. Velocity where speed matters; gates where truth
 matters."*
 
-*12–14 minutes inside the 40-minute mock meeting. Single source of
-truth — rehearsals follow it literally.*
+*14–17 minutes inside the 40-minute mock meeting (12–14 without Act 6).
+Single source of truth — rehearsals follow it literally.*
 
 ## Build status (the honest ledger)
 
@@ -88,12 +88,16 @@ git status                          # clean tree
 ./setup_demo.sh                     # cache OK · seeds OK · .env present
 git checkout analysis/              # restore certified analysis (2.2a runs EXISTING code)
 uv run python gateway/fred_gateway.py --selftest
+uv run python -c "from agent.governance import ToolPolicy; print('SDK governance: OK')"
+uv run python scripts/verify_golden.py  # golden gate pre-check
 claude                              # FRESH session, project root
 /mcp                                # ✓ Connected, 3 tools
 ```
 
 Font XL · one window · Meet share tested · CLAUDE.md +
 spec/analysis_spec.json open in tabs · cameras on.
+If running Act 6: verify `ANTHROPIC_API_KEY` is set; have
+`eval/sdk_eval_report.json` pre-computed as fallback.
 
 ---
 
@@ -472,6 +476,12 @@ actually need to sign off on."*
 - **Regeneration eval (across runs):** `eval_regeneration.py --log`
   per regeneration. Current: **K=2 — one clean; one drift caught,
   corrected, certified.** Claim rates WITH N, never bare "100%".
+- **SDK eval harness (programmatic):** `agent/eval_harness.py` — K
+  regenerations via the SDK agent loop. Adds tool-call-sequence
+  auditing, governance-violation counting, per-tool latency, and
+  structured cost computation. Output: `eval/sdk_eval_report.json`
+  + `eval/sdk_token_log.jsonl`. Same 5 compliance checks, but with
+  metrics the CLI path cannot observe.
 
 ## Recovery moves
 
@@ -490,4 +500,9 @@ actually need to sign off on."*
 - **Clock:** cut curl beat, then 4b, then compress 2.1 to showing the
   committed vix_spike_spec.json as artifact; never cut Act 5 or the
   verify beat.
+- **SDK agent fails / API key missing:** show the governance tests
+  instead — they prove enforcement without the API. Fall back to
+  `eval/sdk_eval_report.json` (pre-computed report).
+- **SDK eval takes too long:** show K=1 or pre-computed report; the
+  point is the METRICS, not the wait.
 - **Total failure:** walk the artifacts — every act has one.
