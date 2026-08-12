@@ -34,6 +34,10 @@ truth — rehearsals follow it literally.*
 | Restricted fixture (seeded) | ✅ | 52-row INTERNAL_CPRI |
 | `setup_demo.sh` | ✅ | idempotent, verified |
 | Regeneration eval log | ✅ | **K=4 (confirm log count): two clean; one result-drift gate-caught (10m49s — hence staging rule); one method-drift human-caught → probe added** |
+| **SDK agent path (`agent/`)** | ✅ | imports clean; 7 tools dispatched; governance enforced as exceptions |
+| **SDK eval harness (`agent/eval_harness.py`)** | ✅ | K regenerations with tool-call-sequence observability, cost tracking |
+| **SDK governance tests** | ✅ | 7/7: secrets denied, curl denied, publish blocked, default-deny, constitutional text |
+| **FastAPI service (`agent/server.py`)** | ✅ | `/analyze`, `/health`, `/audit` endpoints |
 
 ## STAGING RULE (from Rehearsal One's timer)
 
@@ -63,6 +67,9 @@ as a feature. The regeneration CLAIM is carried by the eval log
 | S13 | ABAC at delivery | `RESTRICTED_ENTITLED` | 5 |
 | S14 | Deterministic results, method-discriminating | `verify_golden.py` incl. obs-count probe; re-baseline = human commit | 3 + Encore A |
 | S15 | Governed metadata authoring | `AUTHORING.md`; gates non-removable; golden_access propagated; human review pre-code | **2.1** |
+| S16 | Governance as code (SDK) | `GovernanceDenied` exceptions; not prompt-arguable | 6 |
+| S17 | Tool-call-sequence auditing (SDK) | Every tool invocation introspectable in `AgentResult` | 6 |
+| S18 | Programmatic cost control (SDK) | `response.usage` on every turn; budget-enforceable | 6 |
 
 ## Session rules (non-negotiable)
 
@@ -266,13 +273,117 @@ and a policy engine; this is the pattern at demo scale."
 **VALUE LINE:** *"Governance from the developer's first keystroke to
 the executive's dashboard."*
 
+## Act 6 — From demo to production: the SDK path (2.5–3 min) · S16 S17 S18
+
+**SAY:** "Everything you've seen runs through Claude Code — the
+interactive developer tool. But here's the question a CISO asks:
+*'When you ship this, who enforces the governance — the prompt, or
+your code?'* That's what the SDK path answers."
+
+**SHOW:** the two-path diagram (terminal or slide):
+```
+        spec/analysis_spec.json
+               (business-owned)
+                     |
+        +------------+------------+
+        |                         |
+   Claude Code CLI          Claude SDK
+   (demo + dev)            (eval + CI + service)
+        |                         |
+   MCP gateway             agent/orchestrator.py
+   settings.json deny      governance.py (assert)
+   plan mode               programmatic loop
+        |                         |
+        +------------+------------+
+                     |
+          SHARED DETERMINISM BACKBONE
+          analysis/fed_vix_impact.py
+          scripts/verify_golden.py
+          scripts/eval_regeneration.py
+```
+
+**SAY:** "Two paths, one backbone. The CLI is what the developer
+uses — interactive, visible, approval prompts on screen. The SDK is
+what production uses — governance enforced as Python exceptions that
+the model cannot argue with, tool calls introspectable in code, cost
+tracked on every API turn."
+
+### 6a — Governance as code (1 min) · S16
+
+**RUN:**
+```bash
+uv run python -c "
+from agent.governance import ToolPolicy, GovernanceDenied
+tp = ToolPolicy()
+try:
+    tp.check('publish_external')
+except GovernanceDenied as e:
+    print(e)
+"
+```
+**EXPECT:** `BLOCKED before execution: 'publish_external' is tier 'critical'...`
+
+**SAY:** "Same gate as the MCP server — but now it's a Python
+assertion you can unit-test. In the CLI path, the deny rule is
+configuration you trust a runtime to enforce. In the SDK path, it's
+a `raise GovernanceDenied` — an exception, not a suggestion. You
+can write `pytest` that proves `publish_external` is ALWAYS blocked,
+without burning a single API token."
+
+### 6b — SDK eval harness (1.5 min) · S17 S18
+
+**SAY:** "The real payoff is measurement. Our bash eval script
+(`measure_generation.sh`) runs headless Claude Code sessions and
+parses JSON output after the fact. The SDK eval harness runs the
+agent loop in Python and gets metrics the CLI can't observe."
+
+**SHOW** (the comparison table — terminal or slide):
+
+| Metric | CLI (`measure_generation.sh`) | SDK (`agent/eval_harness.py`) |
+|---|---|---|
+| Token counts | Post-hoc JSON parse | Direct from `response.usage` |
+| Tool call sequence | Not observable | Full ordered list per iteration |
+| Governance violations | Not observable | Counted from caught exceptions |
+| Per-tool latency | Not available | Timed per dispatch |
+| Cost | Parsed from CLI output | Computed from usage in real time |
+| CI integration | Bash exit code | pytest-compatible + JSON artifact |
+
+**RUN (if time permits — otherwise show a pre-computed report):**
+```bash
+uv run python -m agent.eval_harness --k 1 --arm metadata
+```
+**EXPECT:** one iteration: clean slate → SDK agent loop → 5-check
+eval → structured report with tool sequence, cost, governance stats.
+
+**SAY:** "K regenerations, each through the full determinism gate,
+with observability the CLI cannot provide. The claim is still
+'K-of-K passed, N stated' — but now I can tell you exactly which
+tools the agent called, in what order, at what cost, and whether it
+attempted anything the governance layer blocked."
+
+**IF PANEL ASKS 'can we see the service?':**
+```bash
+uv run uvicorn agent.server:app --port 8000 &
+curl -s localhost:8000/health | python -m json.tool
+curl -s localhost:8000/audit?n=5 | python -m json.tool
+```
+**SAY:** "Same governance, same backbone — now behind a REST API.
+The `/health` endpoint runs the golden gate; `/audit` reads the
+trail. An analyst hits `/analyze` with their role, and ABAC decides
+what they see."
+
+**VALUE LINE:** *"The CLI is for the developer's hands; the SDK is
+for the organization's code. Same governance, same determinism,
+different delivery — and you can test the one you ship."*
+
 ## Bridge out (30 sec)
 
 **SAY:** "Everything generalizes: 120 engineers get this motion on
 the payments codebase, 40 data scientists get what you just saw,
 SREs get it mid-incident — one tool, one governance model, three
-teams. Which brings me to how you'd evaluate it…" *(→ eval-plan
-slide; restate the thesis.)*
+teams. And with the SDK path, everything you just watched becomes
+testable, deployable code — not a demo you hope works the same way
+in production." *(→ eval-plan slide; restate the thesis.)*
 
 ---
 
@@ -296,6 +407,61 @@ The interactive John test: the in-character request WITHOUT embedded
 answers; Claude interviews (threshold? calendar vs trading days?
 extra statistics?); then spec generation + read-back. Deploy when the
 panel wants to see elicitation, not just authoring.
+
+## ENCORE C — SDK eval harness deep dive (on invitation) · S16–S18
+
+**Deploy when:** panel asks "how do you measure reliability at
+scale?", "how does this run in CI?", or "what does production look
+like?"
+
+1. **Show the pre-computed report:**
+   ```bash
+   cat eval/sdk_eval_report.json | python -m json.tool
+   ```
+   Walk through: K iterations, per-iteration verdict, tool call
+   sequences, cost, governance violation count.
+
+2. **Run a live K=1 regeneration:**
+   ```bash
+   uv run python -m agent.eval_harness --k 1 --arm metadata
+   ```
+   Narrate: "Clean slate — analysis module deleted. The SDK agent
+   loop runs: reads the spec from its system prompt, calls
+   `run_analysis`, calls `verify_golden`, reports. No CLI, no human
+   approval — governance is code, not configuration."
+
+3. **Compare arms (if time):**
+   ```bash
+   cat eval/sdk_token_log.jsonl | python -m json.tool
+   ```
+   "Prose prompt vs metadata prompt — same compliance rate, different
+   cost. The spec-driven arm burns fewer tokens because the agent
+   doesn't have to parse requirements from natural language."
+
+4. **Show governance testing:**
+   ```bash
+   uv run python -c "
+   from agent.governance import ToolPolicy, PermissionPolicy, GovernanceDenied
+   tests = [
+       ('ToolPolicy',  'publish_external', lambda: ToolPolicy().check('publish_external')),
+       ('ToolPolicy',  'unknown_tool',     lambda: ToolPolicy().check('made_up_tool')),
+       ('Permission',  'secrets',          lambda: PermissionPolicy().check('Read', './secrets/creds.env')),
+       ('Permission',  'curl',             lambda: PermissionPolicy().check('Bash', 'curl:https://evil.com')),
+   ]
+   for category, name, fn in tests:
+       try:
+           fn(); print(f'  FAIL {category}/{name} — not blocked')
+       except GovernanceDenied:
+           print(f'  PASS {category}/{name} — blocked')
+   "
+   ```
+   "Four tests, zero API tokens, zero CLI sessions. This is what
+   you ship to your security team: a pytest suite that proves
+   governance enforcement without running the model."
+
+**VALUE LINE:** *"The demo proves the pattern works. The SDK proves
+you can test the pattern — and that's what regulated industries
+actually need to sign off on."*
 
 ---
 
