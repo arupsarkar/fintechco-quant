@@ -1,0 +1,10 @@
+{
+  "n_events": 34,
+  "n_hikes": 11,
+  "n_cuts": 23,
+  "mean_dvix_all": 0.85,
+  "mean_dvix_hikes": -1.36,
+  "mean_dvix_cuts": 1.91,
+  "hand_check_mar2020_delta_pp": -0.93,
+  "hand_check_jun2022_delta_pp": 0.44
+}
