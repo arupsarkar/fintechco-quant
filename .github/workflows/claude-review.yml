@@ -1,0 +1,40 @@
+name: Claude Governance Review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this PR diff for governance violations per CLAUDE.md:
+
+            1. SECRETS: Flag any read/write/commit of files matching
+               *.key, *.pem, .env*, or under secrets/.
+            2. DATA GOVERNANCE: Flag any raw HTTP, curl, wget, or
+               requests.get() for financial data. All market/economic
+               data must enter through the fred-gateway MCP tools only.
+            3. ANALYSIS INTEGRITY: If analysis code is added or modified,
+               verify it includes: provenance section, assumptions &
+               limitations section, sanity checks, and persists results
+               to analysis/results.json.
+            4. SPEC COMPLIANCE: If analysis code changes, verify exports
+               match the interface_contract in spec/analysis_spec.json
+               (load_csv, identify_events, build_windows, t_test_paired,
+               DATA_DIR).
+            5. DESTRUCTIVE COMMANDS: Flag any rm -rf, force push, DROP,
+               or other destructive operations.
+
+            Post findings as review comments on the specific lines.
+            If no violations found, approve with a short summary.
