@@ -11,3 +11,5 @@ wheels/
 secrets/
 audit/audit_log.jsonl
 data/restricted/
+# Environment variables
+.env

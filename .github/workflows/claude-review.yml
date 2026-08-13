@@ -13,28 +13,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            Review this PR diff for governance violations per CLAUDE.md:
+          fetch-depth: 0
 
-            1. SECRETS: Flag any read/write/commit of files matching
-               *.key, *.pem, .env*, or under secrets/.
-            2. DATA GOVERNANCE: Flag any raw HTTP, curl, wget, or
-               requests.get() for financial data. All market/economic
-               data must enter through the fred-gateway MCP tools only.
-            3. ANALYSIS INTEGRITY: If analysis code is added or modified,
-               verify it includes: provenance section, assumptions &
-               limitations section, sanity checks, and persists results
-               to analysis/results.json.
-            4. SPEC COMPLIANCE: If analysis code changes, verify exports
-               match the interface_contract in spec/analysis_spec.json
-               (load_csv, identify_events, build_windows, t_test_paired,
-               DATA_DIR).
-            5. DESTRUCTIVE COMMANDS: Flag any rm -rf, force push, DROP,
-               or other destructive operations.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-            Post findings as review comments on the specific lines.
-            If no violations found, approve with a short summary.
+      - name: Install Anthropic SDK
+        run: pip install anthropic
+
+      - name: Review diff for governance violations
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD)
+          python - <<'PYEOF'
+          import os, json, subprocess
+          from anthropic import Anthropic
+
+          diff = os.environ.get("DIFF", "")
+          if not diff:
+              diff = subprocess.run(
+                  ["git", "diff", f"origin/{os.environ['GITHUB_BASE_REF']}...HEAD"],
+                  capture_output=True, text=True
+              ).stdout
+
+          client = Anthropic()
+          response = client.messages.create(
+              model="claude-sonnet-4-6",
+              max_tokens=2048,
+              messages=[{"role": "user", "content": f"""Review this PR diff for governance violations per CLAUDE.md.
+          Check for:
+          1. SECRETS: Any read/write/commit of *.key, *.pem, .env*, or secrets/
+          2. DATA GOVERNANCE: Any raw HTTP, curl, wget, requests.get() for financial data (must use fred-gateway only)
+          3. ANALYSIS INTEGRITY: Analysis code must include provenance, assumptions & limitations, sanity checks, persist to results.json
+          4. SPEC COMPLIANCE: Exports must match interface_contract in spec/analysis_spec.json
+          5. DESTRUCTIVE COMMANDS: Any rm -rf, force push, DROP
+
+          Respond with a short summary: violations found (list each) or "No governance violations detected."
+
+          DIFF:
+          {diff[:50000]}"""}],
+          )
+          review = response.content[0].text
+
+          # Post as PR comment
+          pr = os.environ["PR_NUMBER"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          subprocess.run([
+              "gh", "api",
+              f"repos/{repo}/issues/{pr}/comments",
+              "-f", f"body=## Claude Governance Review\n\n{review}",
+          ], check=True)
+          PYEOF
