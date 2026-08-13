@@ -7,7 +7,6 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
 
 jobs:
   review:
@@ -18,6 +17,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_oauth: false
           prompt: |
             Review this PR diff for governance violations per CLAUDE.md:
 
